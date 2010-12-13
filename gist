@@ -1,0 +1,261 @@
+#!/bin/bash
+
+URL_BASE=https://gist.github.com
+user=`whoami`
+repo=
+rest=
+op=
+verbosity=0
+
+cmdout=
+err=
+metadata=
+
+verbose() {
+    level=$1
+    shift
+    msg="$@"
+    (( $verbosity >= $level )) && echo $msg
+    return 0
+}
+
+info() {
+    verbose 0 $@
+}
+
+error() {
+    info "error: $@" && return 0
+}
+
+warn() {
+    info "warning: $@" && return 0
+}
+
+trace() {
+    verbose 1 "$@"
+}
+
+debug() {
+    level=`expr $1 + 2`
+    shift
+    verbose $level "$@"
+}
+
+usage() {
+    echo "usage TODO"
+}
+
+require() {
+    for what in $*; do
+        if !(which $what >& /dev/null); then
+            error "$what is required to run this script, please install it"
+            exit 1
+        fi
+    done
+}
+
+opts() {
+    if [[ ${1:0:1} != "-" ]]; then
+        op=$1
+        OPTIND=2
+    fi
+
+    while getopts "hu:r:v" opt; do
+        case $opt in
+            h) usage; exit 0;;
+            u) user=$OPTARG;;
+            r) repo=$OPTARG;;
+            v) verbosity=`expr $verbosity + 1`;;
+            *) usage; exit 1;;
+        esac
+    done
+
+    shift `expr $OPTIND - 1`
+    rest=$*
+
+    if [[ -z $op ]]; then
+        error "operation must be specified"
+        return 1
+    else
+        return 0
+    fi
+}
+
+copyall() {
+    while read line; do echo $line; done
+}
+
+notags() {
+    copyall | sed -e "s/<[^>]*>/ /g" -e "s/  / /g"
+}
+
+xmlsel() {
+    copyall | xmlstarlet sel -t -c "$@"
+}
+
+execute_raw() {
+    cmd=$*
+    debug 0 -n "exec: $cmd"
+    $cmd
+    rc=$?
+    debug 0 -e "\x20-> $rc"
+    return $rc
+}
+
+execute() {
+    cmd=$*
+    debug 0 -n "exec: $cmd"
+    cmdout=`$cmd`
+    rc=$?
+    debug 0 -e "\x20-> $rc"
+    return $rc
+}
+
+get() {
+    err=
+    what=$1
+
+    execute "curl -s $URL_BASE/api/v1/xml/$what"
+    metadata=$cmdout
+
+    rc=$?
+    if (( $rc )); then
+        err="curl failed"
+    elif [[ ${metadata:0:1} != "<" ]]; then
+        if [[ ${metadata} == "error" ]]; then
+            err="general failure"
+        else
+            err="invalid format"
+        fi
+        return 1
+    else
+        error=`echo $metadata | xmlstarlet sel -t -c "error" | notags`
+        if [[ -n $error ]]; then
+            err=$error
+            return 1
+        else
+            return 0
+        fi
+    fi
+}
+
+download_metadata() {
+    [[ -z $metadata ]] && {
+        trace "downloading user gists metadata"
+        get "gists/$user"
+        (( $? )) && error "download_metadata: $err" && return 1
+        debug 2 $metadata
+    }
+
+    return 0
+}
+
+repo_files() {
+    repo=$1
+    echo $metadata | xmlsel "gists/gist[repo=${repo}]/files/file/file" | notags
+    return $?
+}
+
+repos_list() {
+    echo $metadata | xmlsel "gists/gist/repo" | notags
+}
+
+do_ls() {
+    [[ -n $rest ]] && error "ls does not expect any parameters" && return 1
+    do_ls_core
+    return $?
+}
+
+do_ls_core() {
+    download_metadata
+    (( $? )) && return 1
+
+    local repos=$repo
+    [[ -z $repos ]] && repos=`repos_list`
+
+    for r in $repos; do
+        local files=`repo_files $r`
+        info "$r: $files"
+    done
+
+    return 0
+}
+
+for_files() {
+    local action=$1
+
+    [[ -z $rest ]] && error "no filenames specified" && return 1
+
+    download_metadata
+    (( $? )) && return 1
+
+    for f in $rest; do
+        local lines=`do_ls_core | egrep "\<${f}\>"`
+        local n=`echo $lines | sed -e "s/[^:]//g" | wc -c`
+        if [[ $n -lt 2 ]]; then
+            warn "$f not found"
+        elif [[ $n -gt 2 ]]; then
+            warn "$f found in multiple repositories, specify -r to select repository"
+        else
+            local r=`echo $lines | cut -d: -f1`
+            $action $r $f
+            (( $? )) && return 1
+        fi
+    done
+
+    return 0
+}
+
+
+do_cat_fetch() {
+    local r=$1
+    local f=$2
+    trace "downloading $f from repository $r"
+    execute_raw "curl -s $URL_BASE/raw/$r/$f"
+    info
+}
+
+do_cat() {
+    for_files do_cat_fetch
+}
+
+do_metadata() {
+    download_metadata
+    (( $? )) && return 1
+
+    if [[ -z $repo ]]; then
+        info -e $metadata | xmlstarlet fo
+    else
+        info $metadata | xmlsel "gists/gist[repo=$repo]" | xmlstarlet fo
+    fi
+
+    return $?
+}
+
+act() {
+    rc=0
+
+    case $op in
+        metadata)   do_metadata; rc=$?;;
+        ls)         do_ls; rc=$?;;
+        cat)        do_cat; rc=$?;;
+        *)          error "unrecognized operation $op"; rc=1;;
+    esac
+
+    return $rc
+}
+
+dump() {
+    debug 2 "parameters: op=${op}, user=${user}, repo=${repo}, rest=${rest}, verbosity=${verbosity}"
+    return 0
+}
+
+main() {
+    require xmlstarlet curl
+
+    opts $* && dump && act
+    return $?
+}
+
+main $*
+exit $?
