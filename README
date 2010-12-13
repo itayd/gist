@@ -1,0 +1,9 @@
+gist bash shell
+
+try:
+$ gist ls
+$ gist ls -r <repos>
+$ gist cat [-r repos] <filename>
+$ gist metadata
+$ gist metadata -r repos
+
