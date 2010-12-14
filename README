@@ -3,11 +3,13 @@ gist bash cli
 usage: gist operation [-options] [files...]
 
 operations:
+    help                - this text
     ls                  - lists files and repositories
     cat                 - prints the request files into stdout
     metadata            - prints raw metadata
 
 options:
+    -h                  - this text
     -v, -vv, -vvv...    - increase verbosity
     -r <repos>          - specify repository
     -u <user>           - specify gist username

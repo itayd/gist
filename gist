@@ -50,11 +50,13 @@ gist bash cli
 usage: $exe operation [-options] [files...]
 
 operations:
+    help                - this text
     ls                  - lists files and repositories
     cat                 - prints the request files into stdout
     metadata            - prints raw metadata
 
 options:
+    -h                  - this text
     -v, -vv, -vvv...    - increase verbosity
     -r <repos>          - specify repository
     -u <user>           - specify gist username
@@ -278,6 +280,7 @@ act() {
     rc=0
 
     case $op in
+        help)       usage; rc=0;;
         metadata)   do_metadata; rc=$?;;
         ls)         do_ls; rc=$?;;
         cat)        do_cat; rc=$?;;
