@@ -74,6 +74,8 @@ examples:
     prints contents of file testfile.py (in any repository) for user testuser
     $ $exe cat -r 31337 testfile.py
     prints contents of file testfile.py that is in repository 31337
+    $ $exe cat -r 31337
+    prints contents of entrie repository 31337
     $ $exe metadata
     prints metadata of gist in xml format
     $ $exe metadata -r 31337
@@ -220,10 +222,15 @@ do_ls_core() {
 for_files() {
     local action=$1
 
-    [[ -z $rest ]] && error "no filenames specified" && return 1
+    [[ -z $rest && -z $repo ]] && error "no files or repository specified" && return 1
 
     download_metadata
     (( $? )) && return 1
+
+    [[ -z $rest ]] && {
+        rest=`repo_files $repo`
+        [[ -z $rest ]] && error "no files in repository"
+    }
 
     for f in $rest; do
         local lines=`do_ls_core | egrep "\<${f}\>"`
@@ -241,7 +248,6 @@ for_files() {
 
     return 0
 }
-
 
 do_cat_fetch() {
     local r=$1

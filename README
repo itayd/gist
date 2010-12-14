@@ -27,6 +27,8 @@ examples:
     prints contents of file testfile.py (in any repository) for user testuser
     $ gist cat -r 31337 testfile.py
     prints contents of file testfile.py that is in repository 31337
+    $ gist cat -r 31337
+    prints contents of entrie repository 31337
     $ gist metadata
     prints metadata of gist in xml format
     $ gist metadata -r 31337
