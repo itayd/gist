@@ -53,7 +53,7 @@ usage: $exe operation [-options] [files...]
 operations:
     help                - this text
     ls                  - lists files and repositories
-    new                 - create new repository
+    put                 - create/update repository
     rm                  - remove a repository
     cat                 - prints the request files into stdout
     metadata            - prints raw metadata
@@ -72,8 +72,10 @@ notes:
     3. \`whoami\`
 
 examples:
-    $ $exe new file1 file2
+    $ $exe put file1
     creates a new repository with files file1 and file2
+    $ $exe put -r 31337 file1 file2
+    updates repository 31337 so that it would have file1 and file2
     $ $exe ls
     lists all files in all repositories
     $ $exe ls -r 31337
@@ -237,7 +239,7 @@ do_ls_core() {
         [[ -n $rest ]] && {
             fs=
             for f in $files; do
-                found=`echo " $rest " | grep -o " $f "`
+                local found=`echo " $rest " | grep -o " $f "`
                 [[ -n $found ]] && fs="${fs}${f} "
             done
         }
@@ -298,9 +300,8 @@ do_rm() {
     return $?
 }
 
-do_new() {
+do_put() {
     [[ -z $rest ]] && error "file names must be specified" && exit 1
-    [[ -n $repo ]] && error "repository must not be specified" && exit 1
     [[ -z $token ]] && error "authentication token must be specified" && exit 1
 
     local files_data=
@@ -318,12 +319,13 @@ do_new() {
         files_data="$files_data --data 'file_ext[$ii]=${ext}' --data 'file_name[$ii]=$name' --data-urlencode file_contents[$ii]@$f"
     done
 
-    do_curl "/gists --include --data 'login=$user' --data 'token=$token' --data 'action_button=public' $files_data"
+    [[ -n $repo ]] && repo_url="/$repo" && method="--data _method=put"
+    do_curl "/gists${repo_url} --include $method --data 'login=$user' --data 'token=$token' --data 'action_button=public' $files_data"
     repo=`echo $cmdout | egrep -o "Location: [^ ]*" | grep -o [0-9]*`
     if [[ -z $repo ]]; then
         error "failed"
     else
-        info created new repository $repo
+        info repository $repo
         rest=
         do_ls
     fi
@@ -350,7 +352,7 @@ act() {
         metadata)   do_metadata; rc=$?;;
         ls)         do_ls; rc=$?;;
         cat)        do_cat; rc=$?;;
-        new)        do_new; rc=$?;;
+        put)        do_put; rc=$?;;
         rm)         do_rm; rc=$?;;
         *)          error "unrecognized operation $op"; rc=1;;
     esac
