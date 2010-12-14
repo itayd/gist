@@ -9,7 +9,7 @@ require() {
     done
 }
 
-require xmlstarlet curl
+require xmlstarlet curl git
 
 URL_BASE=https://gist.github.com
 
