@@ -45,6 +45,8 @@ debug() {
 usage() {
     local exe=`basename $0`
     cat <<eom
+gist bash cli
+
 usage: $exe operation [-options] [files...]
 
 operations:

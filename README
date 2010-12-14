@@ -1,9 +1,33 @@
-gist bash shell
+gist bash cli
 
-try:
-$ gist ls
-$ gist ls -r <repos>
-$ gist cat [-r repos] <filename>
-$ gist metadata
-$ gist metadata -r repos
+usage: gist operation [-options] [files...]
 
+operations:
+    ls                  - lists files and repositories
+    cat                 - prints the request files into stdout
+    metadata            - prints raw metadata
+
+options:
+    -v, -vv, -vvv...    - increase verbosity
+    -r <repos>          - specify repository
+    -u <user>           - specify gist username
+
+notes:
+    default username is determined in the following order:
+    1. specified by -u
+    2. content of $GIST_USER
+    3. `whoami`
+
+examples:
+    $ gist ls
+    lists all files in all repositories
+    $ gist ls -r 31337
+    lists all files in repository 31337
+    $ gist cat -u testuser testfile.py
+    prints contents of file testfile.py (in any repository) for user testuser
+    $ gist cat -r 31337 testfile.py
+    prints contents of file testfile.py that is in repository 31337
+    $ gist metadata
+    prints metadata of gist in xml format
+    $ gist metadata -r 31337
+    prints metadata of repository 31337, subset of the entire user's metadata
