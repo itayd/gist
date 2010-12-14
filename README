@@ -18,10 +18,16 @@ options:
     -t <token>          - specify gist token
 
 notes:
-    default username is determined in the following order:
-    1. specified by -u
+    default username is determined with the following priority:
+    1. specified by -u (HIGHEST)
     2. content of $GIST_USER
-    3. `whoami`
+    3. content of git config gist.user
+    4. `whoami` (LOWEST)
+
+    default token is determined with the following priority:
+    4. specified by -t (HIGHEST)
+    2. content of $GIST_TOKEN
+    3. content of git config gist.token
 
 examples:
     $ gist put file1
