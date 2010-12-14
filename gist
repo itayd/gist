@@ -1,9 +1,25 @@
 #!/bin/bash
 
+require() {
+    for what in $*; do
+        if !(which $what >& /dev/null); then
+            error "$what is required to run this script, please install it"
+            exit 1
+        fi
+    done
+}
+
+require xmlstarlet curl
+
 URL_BASE=https://gist.github.com
-user=$GIST_USER
+
+user=`git config gist.user`
+[[ -z $user ]] && user=$GIST_USER
 [[ -z $user ]] && user=`whoami`
-token=$GIST_TOKEN
+
+token=`git config gist.token`
+[[ -z $token ]] && token=$GIST_TOKEN
+
 repo=
 rest=
 op=
@@ -66,10 +82,16 @@ options:
     -t <token>          - specify gist token
 
 notes:
-    default username is determined in the following order:
-    1. specified by -u
+    default username is determined with the following priority:
+    1. specified by -u (HIGHEST)
     2. content of \$GIST_USER
-    3. \`whoami\`
+    3. content of git config gist.user
+    4. \`whoami\` (LOWEST)
+
+    default token is determined with the following priority:
+    4. specified by -t (HIGHEST)
+    2. content of \$GIST_TOKEN
+    3. content of git config gist.token
 
 examples:
     $ $exe put file1
@@ -93,15 +115,6 @@ examples:
     $ $exe rm -r 31337
     remove a repository
 eom
-}
-
-require() {
-    for what in $*; do
-        if !(which $what >& /dev/null); then
-            error "$what is required to run this script, please install it"
-            exit 1
-        fi
-    done
 }
 
 opts() {
@@ -297,7 +310,6 @@ do_rm() {
     [[ -z $token ]] && error "authentication token must be specified" && exit 1
 
     do_curl "/delete/$repo --include --data login=$user --data token=$token --data _method=delete"
-    return $?
 }
 
 do_put() {
@@ -361,13 +373,11 @@ act() {
 }
 
 dump() {
-    debug 2 "parameters: op=${op}, user=${user}, repo=${repo}, rest=${rest}, verbosity=${verbosity}"
+    debug 2 "parameters: op=${op}, user=${user}, token=${token}, repo=${repo}, rest=${rest}, verbosity=${verbosity}"
     return 0
 }
 
 main() {
-    require xmlstarlet curl
-
     opts $* && dump && act
     return $?
 }
