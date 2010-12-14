@@ -5,6 +5,8 @@ usage: gist operation [-options] [files...]
 operations:
     help                - this text
     ls                  - lists files and repositories
+    new                 - create new repository
+    rm                  - remove a repository
     cat                 - prints the request files into stdout
     metadata            - prints raw metadata
 
@@ -13,6 +15,7 @@ options:
     -v, -vv, -vvv...    - increase verbosity
     -r <repos>          - specify repository
     -u <user>           - specify gist username
+    -t <token>          - specify gist token
 
 notes:
     default username is determined in the following order:
@@ -21,6 +24,8 @@ notes:
     3. `whoami`
 
 examples:
+    $ gist new file1 file2
+    creates a new repository with files file1 and file2
     $ gist ls
     lists all files in all repositories
     $ gist ls -r 31337
@@ -35,3 +40,5 @@ examples:
     prints metadata of gist in xml format
     $ gist metadata -r 31337
     prints metadata of repository 31337, subset of the entire user's metadata
+    $ gist rm -r 31337
+    remove a repository

@@ -3,6 +3,7 @@
 URL_BASE=https://gist.github.com
 user=$GIST_USER
 [[ -z $user ]] && user=`whoami`
+token=$GIST_TOKEN
 repo=
 rest=
 op=
@@ -52,6 +53,8 @@ usage: $exe operation [-options] [files...]
 operations:
     help                - this text
     ls                  - lists files and repositories
+    new                 - create new repository
+    rm                  - remove a repository
     cat                 - prints the request files into stdout
     metadata            - prints raw metadata
 
@@ -60,6 +63,7 @@ options:
     -v, -vv, -vvv...    - increase verbosity
     -r <repos>          - specify repository
     -u <user>           - specify gist username
+    -t <token>          - specify gist token
 
 notes:
     default username is determined in the following order:
@@ -68,6 +72,8 @@ notes:
     3. \`whoami\`
 
 examples:
+    $ $exe new file1 file2
+    creates a new repository with files file1 and file2
     $ $exe ls
     lists all files in all repositories
     $ $exe ls -r 31337
@@ -82,6 +88,8 @@ examples:
     prints metadata of gist in xml format
     $ $exe metadata -r 31337
     prints metadata of repository 31337, subset of the entire user's metadata
+    $ $exe rm -r 31337
+    remove a repository
 eom
 }
 
@@ -100,10 +108,11 @@ opts() {
         OPTIND=2
     fi
 
-    while getopts "hu:r:v" opt; do
+    while getopts "hu:r:t:v" opt; do
         case $opt in
             h) usage; exit 0;;
             u) user=$OPTARG;;
+            t) token=$OPTARG;;
             r) repo=$OPTARG;;
             v) verbosity=`expr $verbosity + 1`;;
             *) usage; exit 1;;
@@ -136,8 +145,10 @@ xmlsel() {
 execute_raw() {
     cmd=$*
     debug 0 -n "exec: $cmd"
-    $cmd
+    echo $cmd > /tmp/.gist.$$
+    cmdout=`source /tmp/.gist.$$`
     rc=$?
+    rm -f /tmp/.gist.$$
     debug 0 -e "\x20-> $rc"
     return $rc
 }
@@ -145,31 +156,38 @@ execute_raw() {
 execute() {
     cmd=$*
     debug 0 -n "exec: $cmd"
-    cmdout=`$cmd`
+    echo $cmd > /tmp/.gist.$$
+    cmdout=`source /tmp/.gist.$$`
     rc=$?
+    rm -f /tmp/.gist.$$
     debug 0 -e "\x20-> $rc"
     return $rc
 }
 
-get() {
-    err=
-    what=$1
+do_curl_api() {
+    do_curl "/api/v1/xml/$*"
+    return $?
+}
 
-    execute "curl -s $URL_BASE/api/v1/xml/$what"
-    metadata=$cmdout
+do_curl() {
+    err=
+
+    execute "curl -s $URL_BASE$*"
+
+    debug 2 $cmdout
 
     rc=$?
     if (( $rc )); then
         err="curl failed"
-    elif [[ ${metadata:0:1} != "<" ]]; then
-        if [[ ${metadata} == "error" ]]; then
+    elif [[ ${cmdout:0:1} != "<" ]]; then
+        if [[ ${cmdout} == "error" ]]; then
             err="general failure"
         else
             err="invalid format"
         fi
         return 1
     else
-        error=`echo $metadata | xmlstarlet sel -t -c "error" | notags`
+        error=`echo $cmdout | xmlstarlet sel -t -c "error" | notags`
         if [[ -n $error ]]; then
             err=$error
             return 1
@@ -182,8 +200,9 @@ get() {
 download_metadata() {
     [[ -z $metadata ]] && {
         trace "downloading user gists metadata"
-        get "gists/$user"
+        do_curl_api "gists/$user"
         (( $? )) && error "download_metadata: $err" && return 1
+        metadata=$cmdout
         debug 2 $metadata
     }
 
@@ -263,6 +282,46 @@ do_cat() {
     for_files do_cat_fetch
 }
 
+do_rm() {
+    [[ -n $rest ]] && error "file names must not be specified" && exit 1
+    [[ -z $repo ]] && error "repository must be specified" && exit 1
+    [[ -z $token ]] && error "authentication token must be specified" && exit 1
+
+    do_curl "/delete/$repo --include --data login=$user --data token=$token --data _method=delete"
+    return $?
+}
+
+do_new() {
+    [[ -z $rest ]] && error "file names must be specified" && exit 1
+    [[ -n $repo ]] && error "repository must not be specified" && exit 1
+    [[ -z $token ]] && error "authentication token must be specified" && exit 1
+
+    local files_data=
+    local i=0
+    for f in $rest; do
+        i=`expr $i + 1`
+        local ii="gistfile$i"
+        [[ ! -r $f ]] && error "file $f is not readable" && exit 1
+
+        local name=`basename $f`
+        local ext=${name##*.}
+
+        [[ $ext == $name ]] && ext=
+
+        files_data="$files_data --data 'file_ext[$ii]=${ext}' --data 'file_name[$ii]=$name' --data-urlencode file_contents[$ii]@$f"
+    done
+
+    do_curl "/gists --include --data 'login=$user' --data 'token=$token' --data 'action_button=public' $files_data"
+    repo=`echo $cmdout | egrep -o "Location: [^ ]*" | grep -o [0-9]*`
+    if [[ -z $repo ]]; then
+        error "failed"
+    else
+        info created new repository $repo
+        rest=
+        do_ls
+    fi
+}
+
 do_metadata() {
     download_metadata
     (( $? )) && return 1
@@ -284,6 +343,8 @@ act() {
         metadata)   do_metadata; rc=$?;;
         ls)         do_ls; rc=$?;;
         cat)        do_cat; rc=$?;;
+        new)        do_new; rc=$?;;
+        rm)         do_rm; rc=$?;;
         *)          error "unrecognized operation $op"; rc=1;;
     esac
 
