@@ -220,7 +220,6 @@ repos_list() {
 }
 
 do_ls() {
-    [[ -n $rest ]] && error "ls does not expect any parameters" && return 1
     do_ls_core
     return $?
 }
@@ -234,7 +233,15 @@ do_ls_core() {
 
     for r in $repos; do
         local files=`repo_files $r`
-        info "$r: $files"
+        local fs=$files
+        [[ -n $rest ]] && {
+            fs=
+            for f in $files; do
+                found=`echo " $rest " | grep -o " $f "`
+                [[ -n $found ]] && fs="${fs}${f} "
+            done
+        }
+        [[ -n $fs ]] && info "$r: $fs"
     done
 
     return 0
