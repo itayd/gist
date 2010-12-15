@@ -16,6 +16,7 @@ options:
     -r <repos>          - specify repository
     -u <user>           - specify gist username
     -t <token>          - specify gist token
+    -d <description>    - repository description for put command
 
 notes:
     default username is determined with the following priority:
@@ -30,14 +31,16 @@ notes:
     3. content of git config gist.token
 
 examples:
-    $ gist put file1
+    $ gist put -d "a neet file" file1
     creates a new repository with files file1 and file2
-    $ gist put -r 31337 file1 file2
+    $ gist put -r 31337 -d "two neet files" file1 file2
     updates repository 31337 so that it would have file1 and file2
     $ gist ls
     lists all files in all repositories
     $ gist ls -r 31337
-    lists all files in repository 31337
+    lists all files in repository 3133
+    $ gist ls -v
+    listal all files in all repositories along with the repository description
     $ gist cat -u testuser testfile.py
     prints contents of file testfile.py (in any repository) for user testuser
     $ gist cat -r 31337 testfile.py

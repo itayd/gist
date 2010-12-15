@@ -24,6 +24,7 @@ repo=
 rest=
 op=
 verbosity=0
+desc=
 
 cmdout=
 err=
@@ -54,7 +55,7 @@ trace() {
 }
 
 debug() {
-    level=`expr $1 + 2`
+    local level=`expr $1 + 2`
     shift
     verbose $level "$@"
 }
@@ -80,6 +81,7 @@ options:
     -r <repos>          - specify repository
     -u <user>           - specify gist username
     -t <token>          - specify gist token
+    -d <description>    - repository description for put command
 
 notes:
     default username is determined with the following priority:
@@ -94,14 +96,16 @@ notes:
     3. content of git config gist.token
 
 examples:
-    $ $exe put file1
+    $ $exe put -d "a neet file" file1
     creates a new repository with files file1 and file2
-    $ $exe put -r 31337 file1 file2
+    $ $exe put -r 31337 -d "two neet files" file1 file2
     updates repository 31337 so that it would have file1 and file2
     $ $exe ls
     lists all files in all repositories
     $ $exe ls -r 31337
-    lists all files in repository 31337
+    lists all files in repository 3133
+    $ $exe ls -v
+    listal all files in all repositories along with the repository description
     $ $exe cat -u testuser testfile.py
     prints contents of file testfile.py (in any repository) for user testuser
     $ $exe cat -r 31337 testfile.py
@@ -123,12 +127,13 @@ opts() {
         OPTIND=2
     fi
 
-    while getopts "hu:r:t:v" opt; do
+    while getopts "hu:r:t:d:v" opt; do
         case $opt in
             h) usage; exit 0;;
             u) user=$OPTARG;;
             t) token=$OPTARG;;
             r) repo=$OPTARG;;
+            d) desc=$OPTARG;;
             v) verbosity=`expr $verbosity + 1`;;
             *) usage; exit 1;;
         esac
@@ -161,7 +166,7 @@ execute_raw() {
     cmd=$*
     debug 0 -n "exec: $cmd"
     echo $cmd > /tmp/.gist.$$
-    cmdout=`source /tmp/.gist.$$`
+    source /tmp/.gist.$$
     rc=$?
     rm -f /tmp/.gist.$$
     debug 0 -e "\x20-> $rc"
@@ -256,7 +261,13 @@ do_ls_core() {
                 [[ -n $found ]] && fs="${fs}${f} "
             done
         }
-        [[ -n $fs ]] && info "$r: $fs"
+
+        [[ -n $fs ]] && {
+            info -n "$r: $fs"
+            local d=`echo $metadata | xmlsel "gists/gist[repo=${r}]/description" | notags`
+            [[ -n $d ]] && trace -ne "\x20# $d"
+            info
+        }
     done
 
     return 0
@@ -276,7 +287,7 @@ for_files() {
     }
 
     for f in $rest; do
-        local lines=`do_ls_core | egrep "\<${f}\>"`
+        local lines=`do_ls_core | cut -d# -f1 | egrep "\<${f}\>"`
         local n=`echo $lines | sed -e "s/[^:]//g" | wc -c`
         if [[ $n -lt 2 ]]; then
             warn "$f not found"
@@ -310,6 +321,7 @@ do_rm() {
     [[ -z $token ]] && error "authentication token must be specified" && exit 1
 
     do_curl "/delete/$repo --include --data login=$user --data token=$token --data _method=delete"
+    return 0
 }
 
 do_put() {
@@ -328,7 +340,7 @@ do_put() {
 
         [[ $ext == $name ]] && ext=
 
-        files_data="$files_data --data 'file_ext[$ii]=${ext}' --data 'file_name[$ii]=$name' --data-urlencode file_contents[$ii]@$f"
+        files_data="$files_data --data 'file_ext[$ii]=${ext}' --data 'file_name[$ii]=$name' --data-urlencode description=$desc --data-urlencode file_contents[$ii]@$f"
     done
 
     [[ -n $repo ]] && repo_url="/$repo" && method="--data _method=put"
@@ -378,9 +390,9 @@ dump() {
 }
 
 main() {
-    opts $* && dump && act
+    opts "$@" && dump && act
     return $?
 }
 
-main $*
+main "$@"
 exit $?
