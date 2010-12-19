@@ -3,7 +3,7 @@
 require() {
     for what in $*; do
         if !(which $what >& /dev/null); then
-            error "$what is required to run this script, please install it"
+            echo "error: $what is required to run this script, please install it"
             exit 1
         fi
     done
